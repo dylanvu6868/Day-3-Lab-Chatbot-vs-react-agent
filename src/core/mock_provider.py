@@ -63,20 +63,24 @@ class MockProvider(LLMProvider):
                 )
             if self._asks_for_schedule(lowered):
                 room = self._extract_room(prompt)
+                day_of_week = self._extract_day_of_week(lowered)
                 args = []
                 if student_id:
                     args.append(f'"student_id":"{student_id}"')
                 if room:
                     args.append(f'"room":"{room}"')
-                args.append('"limit":10')
-                args_json = "{" + ",".join(args) + "}"
+                if day_of_week:
+                    args.append(f'"day_of_week":{day_of_week}')
                 if student_id:
+                    args_json = "{" + ",".join(args) + "}"
                     return (
                         "Thought: Can tra cuu lich hoc cua sinh vien trong database.\n"
-                        f"Action: get_daily_schedule({args_json})"
+                        f"Action: get_student_schedule({args_json})"
                     )
+                args.append(f'"limit":{50 if room else 10}')
+                args_json = "{" + ",".join(args) + "}"
                 return (
-                    "Thought: Can tra cuu lich hoc hom nay trong database.\n"
+                    "Thought: Can tra cuu lich hoc theo phong hoac ngay trong database.\n"
                     f"Action: get_daily_schedule({args_json})"
                 )
             if student_id and self._asks_for_profile(lowered):
@@ -126,8 +130,16 @@ class MockProvider(LLMProvider):
 
         if self._asks_for_schedule(lowered):
             room = self._extract_room(prompt) or ""
+            day_of_week = self._extract_day_of_week(lowered) or 0
+            if student_id:
+                from src.tools.school_db_tools import get_student_schedule
+
+                return get_student_schedule(
+                    student_id=student_id,
+                    day_of_week=day_of_week,
+                )
             return get_daily_schedule(
-                student_id=student_id or "",
+                day_of_week=day_of_week,
                 room=room,
                 limit=10,
             )
@@ -160,19 +172,43 @@ class MockProvider(LLMProvider):
 
     def _asks_for_schedule(self, lowered: str) -> bool:
         schedule_words = ["lich hoc", "thoi khoa bieu"]
-        return any(word in lowered for word in schedule_words)
+        return (
+            any(word in lowered for word in schedule_words)
+            or ("phong" in lowered and any(term in lowered for term in ["hoc mon", "mon gi", "sinh vien"]))
+            or ("sinh vien" in lowered and any(term in lowered for term in ["thu may", "mon gi"]))
+        )
 
     def _asks_for_profile(self, lowered: str) -> bool:
         profile_words = ["thong tin sinh vien", "ho so"]
         return any(word in lowered for word in profile_words)
 
     def _extract_student_id(self, text: str) -> Optional[str]:
-        id_match = re.search(r"2A\d{9}|\b\d{1,4}\b", text)
-        return id_match.group(0) if id_match else None
+        full_match = re.search(r"2A\d{9}", text, flags=re.IGNORECASE)
+        if full_match:
+            return full_match.group(0).upper()
+
+        normalized = self._normalize_text(text)
+        patterns = [
+            r"(?:mssv|student_id|ma\s+so\s+sinh\s+vien|ma\s+sinh\s+vien|ma\s+so)\s*[:#-]?\s*(\d{1,4})\b",
+            r"\bsinh\s+vien\s+(\d{1,4})\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, normalized)
+            if match:
+                return match.group(1)
+        return None
 
     def _extract_room(self, text: str) -> Optional[str]:
         room_match = re.search(r"\b[A-Z]\d{3}\b", text, flags=re.IGNORECASE)
         return room_match.group(0).upper() if room_match else None
+
+    def _extract_day_of_week(self, normalized_text: str) -> Optional[int]:
+        match = re.search(r"\b(?:ngay\s+)?thu\s*([2-8])\b", normalized_text)
+        if match:
+            return int(match.group(1))
+        if "chu nhat" in normalized_text:
+            return 8
+        return None
 
     def _extract_range(self, text: str) -> tuple[Optional[int], Optional[int]]:
         normalized = self._normalize_text(text)

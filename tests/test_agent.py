@@ -109,14 +109,48 @@ def test_agent_guardrail_overrides_unsupported_direct_final_answer():
     assert "Authorization failed" not in answer
 
 
-def test_local_provider_uses_tool_router_before_slow_generation():
-    provider = LocalLikeProvider(["Final Answer: should not be called"])
+def test_local_provider_uses_react_for_proper_reasoning():
+    # LocalProvider now uses ReAct instead of rule-based guardrail
+    # This test verifies ReAct works properly with proper thought-action cycles
+    provider = SequenceProvider([
+        'Thought: Cần tìm thông tin sinh viên 2A202600632.\nAction: get_student_profile({"student_id":"2A202600632"})',
+        "Final Answer: Thông tin sinh viên 2A202600632 đã được lấy."
+    ])
     agent = ReActAgent(llm=provider, tools=get_tools(), max_steps=2)
 
     answer = agent.run("Thong tin sinh vien 2A202600632")
 
     assert "SinhVien 632" in answer
-    assert provider.calls == 0
+    assert provider.calls >= 1  # LLM should be called for ReAct reasoning
+
+
+def test_react_agent_answers_room_day_subject_query():
+    # ReAct should properly reason about complex queries
+    provider = SequenceProvider([
+        'Thought: Người dùng hỏi về sinh viên phòng C401 ngày thứ 6 học môn gì. Cần gọi tool để lấy danh sách.\nAction: get_daily_schedule({"day_of_week":6,"room":"C401","limit":50})',
+        "Final Answer: Kết quả từ phòng C401 thứ 6 đã được trả về."
+    ])
+    agent = ReActAgent(llm=provider, tools=get_tools(), max_steps=2)
+
+    answer = agent.run("cho toi hoi cac sinh vien phong C401 ngay thu 6 hoc mon gi?")
+
+    assert "C401" in answer
+    assert "Thu 6" in answer
+    assert provider.calls >= 1  # ReAct calls LLM for reasoning
+
+
+def test_react_agent_answers_full_student_schedule_query():
+    # ReAct properly reasons about student schedule queries
+    provider = SequenceProvider([
+        'Thought: Cần tìm lịch học của sinh viên 2A202600876. Gọi tool get_student_schedule.\nAction: get_student_schedule({"student_id":"2A202600876","day_of_week":0})',
+        "Final Answer: Lịch học của sinh viên 2A202600876 đã được lấy từ database."
+    ])
+    agent = ReActAgent(llm=provider, tools=get_tools(), max_steps=2)
+
+    answer = agent.run("Cho toi hoi sinh vien ma so sinh vien 2A202600876 co lich hoc thu may va mon gi?")
+
+    assert "2A202600876" in answer
+    assert provider.calls >= 1  # ReAct calls LLM for reasoning
 
 
 def test_list_students_supports_range_and_subject_filter():

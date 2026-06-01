@@ -147,6 +147,33 @@ function appendMessage(role, text, persist = true) {
   return article;
 }
 
+function renderTrace(messageElement, trace = [], provider = "") {
+  const bubble = messageElement.querySelector(".bubble");
+  if (!bubble || !Array.isArray(trace) || trace.length === 0) return;
+
+  const details = document.createElement("details");
+  details.className = "react-trace";
+  details.open = true;
+
+  const summary = document.createElement("summary");
+  summary.textContent = provider ? `ReAct trace - ${provider}` : "ReAct trace";
+  details.append(summary);
+
+  const list = document.createElement("ol");
+  trace.forEach((item) => {
+    const row = document.createElement("li");
+    const phase = document.createElement("strong");
+    phase.textContent = `${item.phase || "Step"} ${item.step || ""}: `;
+    const text = document.createElement("span");
+    text.textContent = item.summary || "";
+    row.append(phase, text);
+    list.append(row);
+  });
+
+  details.append(list);
+  bubble.append(details);
+}
+
 function makeTitle(text) {
   const cleaned = text.replace(/\s+/g, " ").trim();
   return cleaned.length > 44 ? `${cleaned.slice(0, 44)}...` : cleaned || "Cuộc trò chuyện mới";
@@ -194,6 +221,7 @@ async function sendMessage(message) {
       throw new Error(data.error || "Request failed");
     }
     pending.querySelector("p").textContent = data.answer;
+    renderTrace(pending, data.trace, data.provider);
     session.messages[session.messages.length - 1] = { role: "assistant", text: data.answer };
     updateSession(session);
   } catch (error) {

@@ -96,7 +96,7 @@ def get_student_schedule(student_id: str, day_of_week: int = 0) -> str:
                 FROM Schedules sc
                 JOIN Subjects sj ON sj.subject_id = sc.subject_id
                 WHERE sc.student_id IN (""" + placeholders + """) AND sc.day_of_week = ?
-                ORDER BY sc.start_time
+                ORDER BY CAST(SUBSTR(sc.start_time, 1, INSTR(sc.start_time, ':') - 1) AS INTEGER), sc.start_time
                 """,
                 (*candidates, day_of_week),
             )
@@ -107,7 +107,7 @@ def get_student_schedule(student_id: str, day_of_week: int = 0) -> str:
                 FROM Schedules sc
                 JOIN Subjects sj ON sj.subject_id = sc.subject_id
                 WHERE sc.student_id IN (""" + placeholders + """)
-                ORDER BY sc.day_of_week, sc.start_time
+                ORDER BY sc.day_of_week, CAST(SUBSTR(sc.start_time, 1, INSTR(sc.start_time, ':') - 1) AS INTEGER), sc.start_time
                 LIMIT 10
                 """,
                 tuple(candidates),
@@ -131,32 +131,41 @@ def get_daily_schedule(
     limit: int = 10,
 ) -> str:
     ensure_bootstrap()
-    selected_day = day_of_week or datetime.now().isoweekday() + 1
+    selected_day = int(day_of_week or 0)
+    use_default_today = selected_day == 0 and not student_id.strip() and not room.strip()
+    if use_default_today:
+        selected_day = datetime.now().isoweekday() + 1
     conn = get_connection()
     try:
         cur = conn.cursor()
-        params: list[Any] = [selected_day]
+        params: list[Any] = []
+        day_filter = ""
+        if selected_day:
+            day_filter = "sc.day_of_week = ?"
+            params.append(selected_day)
         student_filter = ""
         if student_id.strip():
             candidates = _student_id_candidates(student_id)
             placeholders = ",".join("?" for _ in candidates)
-            student_filter = f"AND sc.student_id IN ({placeholders})"
+            student_filter = f"sc.student_id IN ({placeholders})"
             params.extend(candidates)
         room_filter = ""
         if room.strip():
-            room_filter = "AND UPPER(sc.room) = UPPER(?)"
+            room_filter = "UPPER(sc.room) = UPPER(?)"
             params.append(room.strip())
+        filters = [item for item in [day_filter, student_filter, room_filter] if item]
+        where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
         params.append(max(1, min(int(limit), 50)))
         cur.execute(
             f"""
-            SELECT sc.student_id, st.full_name, sc.day_of_week, sc.start_time, sc.room, sj.subject_name
+            SELECT st.student_id, st.full_name, sc.day_of_week, sc.start_time, sc.room, sj.subject_name
             FROM Schedules sc
-            JOIN Students st ON st.student_id = sc.student_id
+            JOIN Students st
+              ON st.student_id = sc.student_id
+              OR CAST(sc.student_id AS INTEGER) = CAST(SUBSTR(st.student_id, 7) AS INTEGER)
             JOIN Subjects sj ON sj.subject_id = sc.subject_id
-            WHERE sc.day_of_week = ?
-            {student_filter}
-            {room_filter}
-            ORDER BY sc.start_time, sc.student_id
+            {where_clause}
+            ORDER BY CAST(SUBSTR(sc.start_time, 1, INSTR(sc.start_time, ':') - 1) AS INTEGER), sc.start_time, sc.student_id
             LIMIT ?
             """,
             tuple(params),
@@ -165,7 +174,8 @@ def get_daily_schedule(
         if not rows:
             target = f" cho sinh vien {student_id}" if student_id.strip() else ""
             room_target = f" tai phong {room.strip().upper()}" if room.strip() else ""
-            return f"Khong tim thay lich hoc thu {selected_day}{target}{room_target}."
+            day_target = f" thu {selected_day}" if selected_day else ""
+            return f"Khong tim thay lich hoc{day_target}{target}{room_target}."
         lines = [
             (
                 f"{r['student_id']} - {r['full_name']} - Thu {r['day_of_week']} "

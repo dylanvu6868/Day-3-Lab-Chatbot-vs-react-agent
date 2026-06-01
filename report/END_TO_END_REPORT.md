@@ -9,7 +9,7 @@
 - Total tokens estimated: 1961
 - Average tokens/request: 130.73
 - Average completion/prompt ratio: 0.9103
-- Average latency/request: 1.0 ms
+- Average latency/request: 0.0 ms
 - Total cost estimate: $0.003922
 
 ## Case Results
