@@ -1,7 +1,6 @@
 import time
 import os
 from typing import Dict, Any, Optional, Generator
-from llama_cpp import Llama
 from src.core.llm_provider import LLMProvider
 
 class LocalProvider(LLMProvider):
@@ -9,7 +8,7 @@ class LocalProvider(LLMProvider):
     LLM Provider for local models using llama-cpp-python.
     Optimized for CPU usage with GGUF models.
     """
-    def __init__(self, model_path: str, n_ctx: int = 4096, n_threads: Optional[int] = None):
+    def __init__(self, model_path: str, n_ctx: int = 4096, n_threads: Optional[int] = None, max_tokens: int = 192):
         """
         Initialize the local Llama model.
         Args:
@@ -18,9 +17,17 @@ class LocalProvider(LLMProvider):
             n_threads: Number of CPU threads to use. Defaults to all available.
         """
         super().__init__(model_name=os.path.basename(model_path))
+        self.max_tokens = max_tokens
         
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at {model_path}. Please download it first.")
+
+        try:
+            from llama_cpp import Llama
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                "llama_cpp is not installed. Run: pip install llama-cpp-python"
+            ) from exc
 
         # n_threads=None will use all available cores
         self.llm = Llama(
@@ -42,8 +49,9 @@ class LocalProvider(LLMProvider):
 
         response = self.llm(
             full_prompt,
-            max_tokens=1024,
+            max_tokens=self.max_tokens,
             stop=["<|end|>", "Observation:"],
+            temperature=0.2,
             echo=False
         )
 
@@ -73,8 +81,9 @@ class LocalProvider(LLMProvider):
 
         stream = self.llm(
             full_prompt,
-            max_tokens=1024,
+            max_tokens=self.max_tokens,
             stop=["<|end|>", "Observation:"],
+            temperature=0.2,
             stream=True
         )
 

@@ -1,5 +1,8 @@
-import os
 import time
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+
 import google.generativeai as genai
 from typing import Dict, Any, Optional, Generator
 from src.core.llm_provider import LLMProvider
@@ -19,17 +22,21 @@ class GeminiProvider(LLMProvider):
         if system_prompt:
             full_prompt = f"System: {system_prompt}\n\nUser: {prompt}"
 
-        response = self.model.generate_content(full_prompt)
+        response = self.model.generate_content(
+            full_prompt,
+            generation_config={"temperature": 0.2},
+        )
 
         end_time = time.time()
         latency_ms = int((end_time - start_time) * 1000)
 
         # Gemini usage data is in response.usage_metadata
-        content = response.text
+        content = getattr(response, "text", "") or ""
+        usage_metadata = getattr(response, "usage_metadata", None)
         usage = {
-            "prompt_tokens": response.usage_metadata.prompt_token_count,
-            "completion_tokens": response.usage_metadata.candidates_token_count,
-            "total_tokens": response.usage_metadata.total_token_count
+            "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0),
+            "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0),
+            "total_tokens": getattr(usage_metadata, "total_token_count", 0)
         }
 
         return {
@@ -44,6 +51,10 @@ class GeminiProvider(LLMProvider):
         if system_prompt:
             full_prompt = f"System: {system_prompt}\n\nUser: {prompt}"
 
-        response = self.model.generate_content(full_prompt, stream=True)
+        response = self.model.generate_content(
+            full_prompt,
+            stream=True,
+            generation_config={"temperature": 0.2},
+        )
         for chunk in response:
             yield chunk.text

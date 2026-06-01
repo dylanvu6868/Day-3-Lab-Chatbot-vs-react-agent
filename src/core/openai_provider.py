@@ -19,17 +19,19 @@ class OpenAIProvider(LLMProvider):
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
+            temperature=0.2,
         )
 
         end_time = time.time()
         latency_ms = int((end_time - start_time) * 1000)
 
         # Extraction from OpenAI response
-        content = response.choices[0].message.content
+        content = response.choices[0].message.content or ""
+        usage_data = response.usage
         usage = {
-            "prompt_tokens": response.usage.prompt_tokens,
-            "completion_tokens": response.usage.completion_tokens,
-            "total_tokens": response.usage.total_tokens
+            "prompt_tokens": getattr(usage_data, "prompt_tokens", 0),
+            "completion_tokens": getattr(usage_data, "completion_tokens", 0),
+            "total_tokens": getattr(usage_data, "total_tokens", 0)
         }
 
         return {
@@ -48,6 +50,7 @@ class OpenAIProvider(LLMProvider):
         stream = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
+            temperature=0.2,
             stream=True
         )
 

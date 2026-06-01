@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trợ lý học vụ</title>
+    <link rel="stylesheet" href="/styles.css?v=3" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Lịch sử chat">
+        <div class="brand">
+          <div class="brand-mark">A</div>
+          <div>
+            <h1>Trợ lý học vụ</h1>
+            <p>Chat với dữ liệu nhà trường</p>
+          </div>
+        </div>
+
+        <button class="new-chat-button" id="newChatButton" type="button">
+          <span>+</span>
+          New chat
+        </button>
+
+        <section class="history-section">
+          <h2>History chat</h2>
+          <div class="history-list" id="historyList"></div>
+        </section>
+      </aside>
+
+      <section class="chat-panel" aria-label="Chat">
+        <header class="chat-header">
+          <div>
+            <p>Academic assistant</p>
+            <h2 id="chatTitle">Cuộc trò chuyện mới</h2>
+          </div>
+        </header>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+
+        <form class="composer" id="chatForm">
+          <textarea
+            id="messageInput"
+            rows="1"
+            placeholder="Nhập câu hỏi về lịch học, lịch thi, phòng học, sinh viên..."
+            autocomplete="off"
+          ></textarea>
+          <button type="submit" id="sendButton">Gửi</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/app.js?v=3"></script>
+  </body>
+</html>

@@ -19,18 +19,27 @@ class PerformanceTracker:
             "prompt_tokens": usage.get("prompt_tokens", 0),
             "completion_tokens": usage.get("completion_tokens", 0),
             "total_tokens": usage.get("total_tokens", 0),
+            "completion_to_prompt_ratio": self._completion_to_prompt_ratio(usage),
             "latency_ms": latency_ms,
-            "cost_estimate": self._calculate_cost(model, usage) # Mock cost calculation
+            "cost_estimate": self._calculate_cost(model, usage),
         }
         self.session_metrics.append(metric)
         logger.log_event("LLM_METRIC", metric)
 
     def _calculate_cost(self, model: str, usage: Dict[str, int]) -> float:
-        """
-        TODO: Implement real pricing logic.
-        For now, returns a dummy constant.
-        """
-        return (usage.get("total_tokens", 0) / 1000) * 0.01
+        rates_per_1k = {
+            "gpt-4o": 0.01,
+            "gpt-4o-mini": 0.002,
+            "gemini-1.5-flash": 0.0015,
+        }
+        rate = rates_per_1k.get(model, 0.002)
+        return (usage.get("total_tokens", 0) / 1000) * rate
+
+    def _completion_to_prompt_ratio(self, usage: Dict[str, int]) -> float:
+        prompt_tokens = usage.get("prompt_tokens", 0)
+        if prompt_tokens <= 0:
+            return 0.0
+        return round(usage.get("completion_tokens", 0) / prompt_tokens, 4)
 
 # Global tracker instance
 tracker = PerformanceTracker()
